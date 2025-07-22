@@ -1,40 +1,54 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
-	"pakun-api-poc/models"
+	"pakun-api-poc/firebase"
 	"time"
 )
+
+type OTPEntry struct {
+	Code string `firestore:"code"`
+	ExpiresAt time.Time `firestore:"expiresAt"`
+}
 
 func generateRandomOTP() string {
 	rand.Seed(time.Now().UnixNano())
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
 }
 
-func GenerateAndSaveOTP(identifier string) string {
+func GenerateAndSaveOTP(identifier string) (string, error) {
 	otp := generateRandomOTP()
-	models.OTPStore[identifier] = models.OTPEntry{
+	entry := OTPEntry{
 		Code: otp,
-		ExpiresAt: time.Now().Add(time.Minute * 5),
+		ExpiresAt: time.Now().Add(time.Minute * 1),
 	}
 
-	return otp
+	_, err := firebase.Client.Collection("otps").Doc(identifier).Set(context.Background(), entry)
+	if err != nil {
+		return "", err
+	}
+
+	return otp, nil
 }
 
-func VerifyOTP(identifier string, code string) bool {
-	entry, exists := models.OTPStore[identifier]
-	if !exists {
-		return false
+func VerifyOTP(identifier string, code string) (bool, error) {
+	doc, err := firebase.Client.Collection("otps").Doc(identifier).Get(context.Background())
+	if err != nil {
+		return false, nil
 	}
+	var entry OTPEntry
+	doc.DataTo(&entry)
+
 	if time.Now().After(entry.ExpiresAt) {
-		delete(models.OTPStore, identifier)
-		return false
+		firebase.Client.Collection("otps").Doc(identifier).Delete(context.Background())
+		return false, nil
 	}
 	if entry.Code != code {
-		return false
+		return false, nil
 	}
-	delete(models.OTPStore, identifier)
-	return true
+	firebase.Client.Collection("otps").Doc(identifier).Delete(context.Background())
+	return true, nil
 }
 
