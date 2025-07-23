@@ -7,4 +7,5 @@ func RegisterRoutes(server *gin.Engine) {
 	server.POST("/auth/verify-otp", VerifyOTP)
 	server.GET("/dashboard", GetDashboard)
 	server.GET("/transactions", GetTransactionHistory)
+	server.GET("/transactions/summary", GetFinanceSummary)
 }
